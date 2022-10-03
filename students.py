@@ -1,3 +1,7 @@
+# Script to take values from PowerSchool and put them into a csv file for upload to Clever
+# basically just a big SQL query, the results are massaged a tiny bit to get the email and a few other fields format
+# then output one student per line to the Students.csv file which is then uploaded to the Clever SFTP server
+
 # importing module
 import pysftp  # used to connect to the Clever sftp site and upload the file
 import sys  # needed for  non-scrolling display
@@ -17,7 +21,6 @@ cnopts = pysftp.CnOpts(knownhosts='known_hosts') #connection options to use the 
 
 print("Username: " + str(un) + " |Password: " + str(pw) + " |Server: " + str(cs))
 print("SFTP Username: " + str(sftpUN) + " |SFTP Password: " + str(sftpPW) + " |SFTP Server: " + str(sftpHOST)) #debug so we can see what sftp info is being used
-badnames = ['USE', 'TESTSTUDENT', 'TEST STUDENT', 'TESTTT', 'TESTTEST']
 
 # create the connecton to the database
 with oracledb.connect(user=un, password=pw, dsn=cs) as con:
@@ -49,3 +52,13 @@ with oracledb.connect(user=un, password=pw, dsn=cs) as con:
                                     print('', file=output)
                     except Exception as er:
                         print("Error on " + str(student[3]) + ": " + str(er))
+            print('') # spacer line after the non-scrolling text
+            # connect to the Clever SFTP server using the login details stored as environement variables
+            with pysftp.Connection(sftpHOST, username=sftpUN, password=sftpPW, cnopts=cnopts) as sftp:
+                print('SFTP connection established')
+                print('SFTP connection established', file=log)
+                # print(sftp.pwd) # debug, show what folder we connected to
+                # print(sftp.listdir())  # debug, show what other files/folders are in the current directory
+                sftp.put('Students.csv')  # upload the file onto the sftp server
+                print("Student sync file plraced on remote server")
+                print("Student sync file placed on remote server", file=log)
