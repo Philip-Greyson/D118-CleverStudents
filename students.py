@@ -29,7 +29,7 @@ with oracledb.connect(user=un, password=pw, dsn=cs) as con:
             with open('Students.csv', 'w') as output:  # open the output file
                 print("Connection established: " + con.version)
                 print('"Student_id","State_id","Student_number","School_id","Student_city","Dob","Active","First_name","Middle_name","Last_name","Gender","Grade","Student_state","Student_Street","Student_Zip","Student_email","Hispanic_Latino","Race","Ell_Status"',file=output)  # print out header row
-                cur.execute('SELECT students.id, students.state_studentNumber, students.student_number, students.schoolid, students.city, students.dob, students.enroll_status, students.first_name, students.middle_name, students.last_name, students.gender, students.grade_level, students.state, students.street, students.zip, students.student_number, u_def_ext_students0.custom_ethnicity, u_def_ext_students0.custom_race, u_def_ext_students0.custom_lep FROM students LEFT JOIN u_def_ext_students0 ON students.dcid = u_def_ext_students0.studentsdcid WHERE students.enroll_status = 0 ORDER BY students.id')
+                cur.execute('SELECT students.id, students.state_studentNumber, students.student_number, students.schoolid, students.city, students.dob, students.enroll_status, students.first_name, students.middle_name, students.last_name, students.gender, students.grade_level, students.state, students.street, students.zip, students.student_number, u_def_ext_students0.custom_ethnicity, u_def_ext_students0.custom_race, u_def_ext_students0.custom_lep FROM students LEFT JOIN u_def_ext_students0 ON students.dcid = u_def_ext_students0.studentsdcid WHERE (students.enroll_status = 0 OR students.enroll_status = -1) ORDER BY students.id')
                 studentRows = cur.fetchall()  # store the data from the query into the rows variable
 
                 # go through each entry (which is a tuple) in rows. Each entrytuple is a single students's data
@@ -41,6 +41,7 @@ with oracledb.connect(user=un, password=pw, dsn=cs) as con:
                         print(student, file=log)
                         student[2] = int(student[2]) # take the student number as an int to get rid of the trailing 0
                         student[5] = student[5].strftime('%Y-%m-%d') # convert the full datetime value to just yyyy-mm-dd
+                        student[6] = '0' # just set the active field to 0 since it now includes the pre-registered
                         student[15] = str(student[2]) + '@d118.org' # take the student number and append the d118.org email on it
                         for fieldnum, field in enumerate(student): # go through each part of the results of fields for students one at a time
                             field = '' if field == None else field # strip out the literal None values and set them to blanks if there is no value
