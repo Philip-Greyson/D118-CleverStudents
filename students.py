@@ -28,8 +28,8 @@ with oracledb.connect(user=un, password=pw, dsn=cs) as con:
         with open('student_log.txt', 'w') as log:
             with open('Students.csv', 'w') as output:  # open the output file
                 print("Connection established: " + con.version)
-                print('"Student_id","State_id","Student_number","School_id","Student_city","Dob","Active","First_name","Middle_name","Last_name","Gender","Grade","Student_state","Student_Street","Student_Zip","Student_email","Hispanic_Latino","Race","Ell_Status"',file=output)  # print out header row
-                cur.execute('SELECT students.id, students.state_studentNumber, students.student_number, students.schoolid, students.city, students.dob, students.enroll_status, students.first_name, students.middle_name, students.last_name, students.gender, students.grade_level, students.state, students.street, students.zip, students.student_number, u_def_ext_students0.custom_ethnicity, u_def_ext_students0.custom_race, u_def_ext_students0.custom_lep FROM students LEFT JOIN u_def_ext_students0 ON students.dcid = u_def_ext_students0.studentsdcid WHERE (students.enroll_status = 0 OR students.enroll_status = -1) ORDER BY students.id')
+                print('"Student_id","State_id","Student_number","School_id","Student_city","Dob","Active","First_name","Middle_name","Last_name","Gender","Grade","Student_state","Student_Street","Student_Zip","Student_email","Hispanic_Latino","Race","Ell_Status","Frl_status","IEP_status"',file=output)  # print out header row
+                cur.execute('SELECT students.id, students.state_studentNumber, students.student_number, students.schoolid, students.city, students.dob, students.enroll_status, students.first_name, students.middle_name, students.last_name, students.gender, students.grade_level, students.state, students.street, students.zip, students.student_number, u_def_ext_students0.custom_ethnicity, u_def_ext_students0.custom_race, u_def_ext_students0.custom_lep, students.lunchstatus, s_il_stu_x.iep FROM students LEFT JOIN u_def_ext_students0 ON students.dcid = u_def_ext_students0.studentsdcid LEFT JOIN s_il_stu_x ON students.dcid = s_il_stu_x.studentsdcid WHERE (students.enroll_status = 0 OR students.enroll_status = -1) ORDER BY students.id')
                 studentRows = cur.fetchall()  # store the data from the query into the rows variable
 
                 # go through each entry (which is a tuple) in rows. Each entrytuple is a single students's data
@@ -43,6 +43,11 @@ with oracledb.connect(user=un, password=pw, dsn=cs) as con:
                         student[5] = student[5].strftime('%Y-%m-%d') # convert the full datetime value to just yyyy-mm-dd
                         student[6] = '0' # just set the active field to 0 since it now includes the pre-registered
                         student[15] = str(student[2]) + '@d118.org' # take the student number and append the d118.org email on it
+                        if student[19] == 'FDC' or student[19] == 'RDC':
+                            student[19] = student[19][0] # just take the first character F or R from the string
+                        elif student[19] == 'P':
+                            student[19] = 'N'
+                        student[20] = 'Y' if student[20] == 1 else 'N' # iep status handling
                         for fieldnum, field in enumerate(student): # go through each part of the results of fields for students one at a time
                             field = '' if field == None else field # strip out the literal None values and set them to blanks if there is no value
                             print('"' + str(field) + '"', end = '', file=output) # print the value of the field surrounded by quotes, but without a newline after each field so it all stays on one line
