@@ -1,3 +1,11 @@
+"""Script to synchronize student data from PowerSchool to Clever via SFTP upload.
+
+https://github.com/Philip-Greyson/D118-CleverStudents
+
+Just does a big SQL query for all students, massages a few fields, and outputs it to the .csv file which is then uploaded to Clever via SFTP.
+"""
+
+
 # Script to take values from PowerSchool and put them into a csv file for upload to Clever
 # basically just a big SQL query, the results are massaged a tiny bit to get the email and a few other fields format
 # then output one student per line to the Students.csv file which is then uploaded to the Clever SFTP server
