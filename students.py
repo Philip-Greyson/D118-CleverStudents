@@ -3,68 +3,101 @@
 # then output one student per line to the Students.csv file which is then uploaded to the Clever SFTP server
 
 # importing module
-import pysftp  # used to connect to the Clever sftp site and upload the file
-import sys  # needed for  non-scrolling display
-import os  # needed to get system variables which have the PS IP and password in them
-import oracledb # needed to connect to the PowerSchool database (oracle database)
-from datetime import datetime
+import datetime  # used to get current date for course info
+import os  # needed to get environement variables
+from datetime import *
 
-un = 'PSNavigator'  # PSNavigator is read only, PS is read/write
-pw = os.environ.get('POWERSCHOOL_DB_PASSWORD') # the password for the PSNavigator account
-cs = os.environ.get('POWERSCHOOL_PROD_DB') # the IP address, port, and database name to connect to
+import oracledb  # needed to connect to the PowerSchool database (oracle database)
+import pysftp  # used to connect to the Clever sftp site and upload the file
+
+DB_UN = os.environ.get('POWERSCHOOL_READ_USER')  # username for read-only database user
+DB_PW = os.environ.get('POWERSCHOOL_DB_PASSWORD')  # the password for the database account
+DB_CS = os.environ.get('POWERSCHOOL_PROD_DB')  # the IP address, port, and database name to connect to
 
 #set up sftp login info, stored as environment variables on system
-sftpUN = os.environ.get('CLEVER_SFTP_USERNAME')
-sftpPW = os.environ.get('CLEVER_SFTP_PASSWORD')
-sftpHOST = os.environ.get('CLEVER_SFTP_ADDRESS')
-cnopts = pysftp.CnOpts(knownhosts='known_hosts') #connection options to use the known_hosts file for key validation
+SFTP_UN = os.environ.get('CLEVER_SFTP_USERNAME')
+SFTP_PW = os.environ.get('CLEVER_SFTP_PASSWORD')
+SFTP_HOST = os.environ.get('CLEVER_SFTP_ADDRESS')
+CNOPTS = pysftp.CnOpts(knownhosts='known_hosts')  # connection options to use the known_hosts file for key validation
 
-print("Username: " + str(un) + " |Password: " + str(pw) + " |Server: " + str(cs))
-print("SFTP Username: " + str(sftpUN) + " |SFTP Password: " + str(sftpPW) + " |SFTP Server: " + str(sftpHOST)) #debug so we can see what sftp info is being used
+OUTPUT_FILE_NAME = 'Students.csv'
+EMAIL_SUFFIX = '@d118.org'  # domain for emails used to construct the student email addresses
 
-# create the connecton to the database
-with oracledb.connect(user=un, password=pw, dsn=cs) as con:
-    with con.cursor() as cur:  # start an entry cursor
-        with open('student_log.txt', 'w') as log:
-            with open('Students.csv', 'w') as output:  # open the output file
-                print("Connection established: " + con.version)
-                print('"Student_id","State_id","Student_number","School_id","Student_city","Dob","Active","First_name","Middle_name","Last_name","Gender","Grade","Student_state","Student_Street","Student_Zip","Student_email","Hispanic_Latino","Race","Ell_Status","Frl_status","IEP_status"',file=output)  # print out header row
-                cur.execute('SELECT students.id, students.state_studentNumber, students.student_number, students.schoolid, students.city, students.dob, students.enroll_status, students.first_name, students.middle_name, students.last_name, students.gender, students.grade_level, students.state, students.street, students.zip, students.student_number, u_def_ext_students0.custom_ethnicity, u_def_ext_students0.custom_race, u_def_ext_students0.custom_lep, students.lunchstatus, s_il_stu_x.iep FROM students LEFT JOIN u_def_ext_students0 ON students.dcid = u_def_ext_students0.studentsdcid LEFT JOIN s_il_stu_x ON students.dcid = s_il_stu_x.studentsdcid WHERE (students.enroll_status = 0 OR students.enroll_status = -1) ORDER BY students.id')
-                studentRows = cur.fetchall()  # store the data from the query into the rows variable
+print(f"Database Username: {DB_UN} |Password: {DB_PW} |Server: {DB_CS}")  # debug so we can see where oracle is trying to connect to/with
+print(f'SFTP Username: {SFTP_UN} | SFTP Password: {SFTP_PW} | SFTP Server: {SFTP_HOST}')  # debug so we can see what info sftp connection is using
 
-                # go through each entry (which is a tuple) in rows. Each entrytuple is a single students's data
-                for count, student in enumerate(studentRows):
-                    student = list(student) # convert from tuple to list so we can edit the values in the list without having to store each value as a variable
-                    try:
-                        sys.stdout.write('\rProccessing student entry %i' % count) # sort of fancy text to display progress of how many students are being processed without making newlines
-                        sys.stdout.flush()
-                        print(student, file=log)
-                        student[2] = int(student[2]) # take the student number as an int to get rid of the trailing 0
-                        student[5] = student[5].strftime('%Y-%m-%d') # convert the full datetime value to just yyyy-mm-dd
-                        student[6] = '0' # just set the active field to 0 since it now includes the pre-registered
-                        student[15] = str(student[2]) + '@d118.org' # take the student number and append the d118.org email on it
-                        if student[19] == 'FDC' or student[19] == 'RDC':
-                            student[19] = student[19][0] # just take the first character F or R from the string
-                        elif student[19] == 'P':
-                            student[19] = 'N'
-                        student[20] = 'Y' if student[20] == 1 else 'N' # iep status handling
-                        for fieldnum, field in enumerate(student): # go through each part of the results of fields for students one at a time
-                            field = '' if field == None else field # strip out the literal None values and set them to blanks if there is no value
-                            print('"' + str(field) + '"', end = '', file=output) # print the value of the field surrounded by quotes, but without a newline after each field so it all stays on one line
-                            if fieldnum+1 < len(student): # for every field except the last one
-                                print(',', end='', file=output) # print the dividing comma for a csv file
-                            else: # for the final field we dont want a trailing comma and instead just want a newline
-                                if count+1 < len(studentRows): # if we are not at the last student entry, add a newline after the last field
-                                    print('', file=output)
-                    except Exception as er:
-                        print("Error on " + str(student[3]) + ": " + str(er))
-            print('') # spacer line after the non-scrolling text
+
+if __name__ == '__main__':  # main file execution
+    with open('student_log.txt', 'w') as log:
+        startTime = datetime.now()
+        startTime = startTime.strftime('%H:%M:%S')
+        print(f'INFO: Execution started at {startTime}')
+        print(f'INFO: Execution started at {startTime}', file=log)
+        with open(OUTPUT_FILE_NAME, 'w') as output:  # open the output file
+            print('"Student_id","State_id","Student_number","School_id","Student_city","Dob","First_name","Middle_name","Last_name","Gender","Grade","Student_state","Student_Street","Student_Zip","Student_email","Hispanic_Latino","Race","Ell_Status","Frl_status","IEP_status"',file=output)  # print out header row to output file
+            try:
+                with oracledb.connect(user=DB_UN, password=DB_PW, dsn=DB_CS) as con:  # create the connecton to the database
+                    with con.cursor() as cur:  # start an entry cursor
+                        print(f'INFO: Connection established to PS database on version: {con.version}')
+                        print(f'INFO: Connection established to PS database on version: {con.version}', file=log)
+                        # do the big SQL query for active or pre-enrolled students
+                        cur.execute('SELECT students.id, students.state_studentNumber, students.student_number, students.schoolid, students.city, students.dob, students.first_name, students.middle_name, students.last_name, students.gender, students.grade_level, students.state, students.street, students.zip, u_def_ext_students0.custom_ethnicity, u_def_ext_students0.custom_race, u_def_ext_students0.custom_lep, students.lunchstatus, s_il_stu_x.iep FROM students LEFT JOIN u_def_ext_students0 ON students.dcid = u_def_ext_students0.studentsdcid LEFT JOIN s_il_stu_x ON students.dcid = s_il_stu_x.studentsdcid WHERE (students.enroll_status = 0 OR students.enroll_status = -1) ORDER BY students.id')
+                        students = cur.fetchall()  # store the data from the query into the students variable
+                        for student in students:  # go through each student's data
+                            try:
+                                print(student, file=log)
+                                internalID = int(student[0])
+                                stateID = int(student[1]) if student[1] else ''  # set to blank string if there is no value
+                                stuNum = int(student[2])
+                                school = int(student[3])
+                                city = student[4] if student[4] else ''  # set to blank string if there is no value
+                                birthdate = student[5].strftime('%Y-%m-%d')  # convert the full datetime value to just yyyy-mm-dd
+                                firstName = student[6]
+                                middleName = student[7] if student[7] else ''  # set to blank string if there is no value
+                                lastName = student[8]
+                                gender = student[9]
+                                grade = int(student[10])
+                                state = student[11]
+                                address = student[12] if student[12] else ''  # set to blank string if there is no value
+                                zipCode = student[13] if student[13] else ''  # set to blank string if there is no value
+                                email = str(stuNum) + EMAIL_SUFFIX
+                                ethnicity = student[14] if student[14] else ''  # Y or N for hispanic latino. handled by the clever race ethnicity lep script https://github.com/Philip-Greyson/D118-CleverRaceEthnicityLEP
+                                race = student[15] if student[15] else ''  # character race code such as W, B, M, etc. handled by the clever race ethnicity lep script
+                                lep = student[16] if student[16] else ''  # low english proficiency, handled by the clever race ethnicity lep script
+                                if 'F' in student[17] or student[17] == 'T':  # handles 'F' and 'FDC' cases, 'T' for temporary
+                                    freeReduced = 'F'  # freee
+                                elif student[17] == 'R':
+                                    freeReduced = 'R'  # reduced
+                                else:  # handles 'E', blank, or 'P'
+                                    freeReduced = 'N'  # no discount
+                                iep = 'Y' if student[18] == 1 else 'N'  # iep status handling
+
+                                # print out the student's information to the output file
+                                print(f'{internalID},{stateID},{stuNum},{school},"{city}",{birthdate},{firstName},{middleName},{lastName},{gender},{grade},"{state}","{address}",{zipCode},{email},{ethnicity},{race},{lep},{freeReduced},{iep}', file=output)
+
+                            except Exception as er:
+                                print(f'ERROR while processing student {student[2]}: {er}')
+                                print(f'ERROR while processing student {student[2]}: {er}', file=log)
+
+            except Exception as er:
+                print(f'ERROR while connecting to PowerSchool or doing query: {er}')
+                print(f'ERROR while connecting to PowerSchool or doing query: {er}', file=log)
+
+        try:
             # connect to the Clever SFTP server using the login details stored as environement variables
-            with pysftp.Connection(sftpHOST, username=sftpUN, password=sftpPW, cnopts=cnopts) as sftp:
-                print('SFTP connection established')
-                print('SFTP connection established', file=log)
+            with pysftp.Connection(SFTP_HOST, username=SFTP_UN, password=SFTP_PW, cnopts=CNOPTS) as sftp:
+                print(f'INFO: SFTP connection to Clever at {SFTP_HOST} successfully established')
+                print(f'INFO: SFTP connection to Clever at {SFTP_HOST} successfully established', file=log)
                 # print(sftp.pwd) # debug, show what folder we connected to
                 # print(sftp.listdir())  # debug, show what other files/folders are in the current directory
-                sftp.put('Students.csv')  # upload the file onto the sftp server
-                print("Student sync file plraced on remote server")
-                print("Student sync file placed on remote server", file=log)
+                sftp.put(OUTPUT_FILE_NAME)  # upload the file onto the sftp server
+                print("INFO: Student sync file placed on remote server")
+                print("INFO: Student sync file placed on remote server", file=log)
+        except Exception as er:
+            print(f'ERROR while connecting or uploading to Clever SFTP server: {er}')
+            print(f'ERROR while connecting or uploading to Clever SFTP server: {er}', file=log)
+
+        endTime = datetime.now()
+        endTime = endTime.strftime('%H:%M:%S')
+        print(f'INFO: Execution ended at {endTime}')
+        print(f'INFO: Execution ended at {endTime}', file=log)
