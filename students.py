@@ -42,14 +42,21 @@ if __name__ == '__main__':  # main file execution
         print(f'INFO: Execution started at {startTime}')
         print(f'INFO: Execution started at {startTime}', file=log)
         with open(OUTPUT_FILE_NAME, 'w') as output:  # open the output file
-            print('"Student_id","State_id","Student_number","School_id","Student_city","Dob","First_name","Middle_name","Last_name","Gender","Grade","Student_state","Student_Street","Student_Zip","Student_email","Hispanic_Latino","Race","Ell_Status","Frl_status","IEP_status"',file=output)  # print out header row to output file
+            print('"Student_id","State_id","Student_number","School_id","Student_city","Dob","First_name","Middle_name","Last_name","Gender","Grade","Student_state","Student_Street","Student_Zip","Student_email","Hispanic_Latino","Race","Ell_Status","Frl_status","IEP_status","Section_504_status","Gifted_status","Unweighted_gpa","Weighted_gpa"',file=output)  # print out header row to output file
             try:
                 with oracledb.connect(user=DB_UN, password=DB_PW, dsn=DB_CS) as con:  # create the connecton to the database
                     with con.cursor() as cur:  # start an entry cursor
                         print(f'INFO: Connection established to PS database on version: {con.version}')
                         print(f'INFO: Connection established to PS database on version: {con.version}', file=log)
                         # do the big SQL query for active or pre-enrolled students
-                        cur.execute('SELECT students.id, students.state_studentNumber, students.student_number, students.schoolid, students.city, students.dob, students.first_name, students.middle_name, students.last_name, students.gender, students.grade_level, students.state, students.street, students.zip, u_def_ext_students0.custom_ethnicity, u_def_ext_students0.custom_race, u_def_ext_students0.custom_lep, students.lunchstatus, s_il_stu_x.iep FROM students LEFT JOIN u_def_ext_students0 ON students.dcid = u_def_ext_students0.studentsdcid LEFT JOIN s_il_stu_x ON students.dcid = s_il_stu_x.studentsdcid WHERE (students.enroll_status = 0 OR students.enroll_status = -1) ORDER BY students.id')
+                        cur.execute('SELECT stu.id, stu.state_studentNumber, stu.student_number, stu.schoolid, stu.city, stu.dob, stu.first_name, stu.middle_name, stu.last_name, stu.gender,\
+                        stu.grade_level, stu.state, stu.street, stu.zip, ext.custom_ethnicity, ext.custom_race, ext.custom_lep, stu.lunchstatus,\
+                        il.iep, il504.participant, crdc.giftedtalentedprograms_yn, ext.simple_gpa, ext.weighted_gpa\
+                        FROM students stu LEFT JOIN u_def_ext_students0 ext ON stu.dcid = ext.studentsdcid\
+                        LEFT JOIN s_il_stu_x il ON stu.dcid = il.studentsdcid\
+                        LEFT JOIN s_il_stu_plan504_x il504 ON stu.dcid = il504.studentsdcid\
+                        LEFT JOIN s_stu_crdc_x crdc ON stu.dcid = crdc.studentsdcid\
+                        WHERE (stu.enroll_status = 0 OR stu.enroll_status = -1) ORDER BY stu.id')
                         students = cur.fetchall()  # store the data from the query into the students variable
                         for student in students:  # go through each student's data
                             try:
@@ -79,9 +86,13 @@ if __name__ == '__main__':  # main file execution
                                 else:  # handles 'E', blank, or 'P'
                                     freeReduced = 'N'  # no discount
                                 iep = 'Y' if student[18] == 1 else 'N'  # iep status handling
+                                section504 = 'Y' if student[19] == 1 else 'N'  # 504 status handling
+                                gifted = student[20] if student[20] else 'N'  # gifted status, comes in as Y/N/Null
+                                simpleGPA = student[21] if student[21] else ''
+                                weightedGPA = student[22] if student[22] else ''
 
                                 # print out the student's information to the output file
-                                print(f'{internalID},{stateID},{stuNum},{school},"{city}",{birthdate},{firstName},{middleName},{lastName},{gender},{grade},"{state}","{address}",{zipCode},{email},{ethnicity},{race},{lep},{freeReduced},{iep}', file=output)
+                                print(f'{internalID},{stateID},{stuNum},{school},"{city}",{birthdate},{firstName},{middleName},{lastName},{gender},{grade},"{state}","{address}",{zipCode},{email},{ethnicity},{race},{lep},{freeReduced},{iep},{section504},{gifted},{simpleGPA},{weightedGPA}', file=output)
 
                             except Exception as er:
                                 print(f'ERROR while processing student {student[2]}: {er}')
