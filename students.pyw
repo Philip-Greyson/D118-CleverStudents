@@ -115,7 +115,7 @@ if __name__ == '__main__':  # main file execution
                 print(f'INFO: SFTP connection to Clever at {SFTP_HOST} successfully established', file=log)
                 # print(sftp.pwd) # debug, show what folder we connected to
                 # print(sftp.listdir())  # debug, show what other files/folders are in the current directory
-                # sftp.put(OUTPUT_FILE_NAME)  # upload the file onto the sftp server
+                sftp.put(OUTPUT_FILE_NAME)  # upload the file onto the sftp server
                 print("INFO: Student sync file placed on remote server")
                 print("INFO: Student sync file placed on remote server", file=log)
         except Exception as er:
