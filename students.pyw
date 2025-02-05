@@ -31,6 +31,8 @@ CNOPTS = pysftp.CnOpts(knownhosts='known_hosts')  # connection options to use th
 OUTPUT_FILE_NAME = 'Students.csv'
 EMAIL_SUFFIX = '@d118.org'  # domain for emails used to construct the student email addresses
 
+BAD_NAMES = ['use','training1','trianing2','trianing3','trianing4','planning','admin','nurse','user','use ','test','testtt','test22','teststudent','tester','karentest','student','new student test','returning student','returning student test','whs','wgs','rcs','ccs','mms','wms']  # List of names that some of the dummy/old accounts use so we can ignore them
+
 print(f"Database Username: {DB_UN} |Password: {DB_PW} |Server: {DB_CS}")  # debug so we can see where oracle is trying to connect to/with
 print(f'SFTP Username: {SFTP_UN} | SFTP Password: {SFTP_PW} | SFTP Server: {SFTP_HOST}')  # debug so we can see what info sftp connection is using
 
@@ -70,6 +72,10 @@ if __name__ == '__main__':  # main file execution
                                 firstName = student[6]
                                 middleName = student[7] if student[7] else ''  # set to blank string if there is no value
                                 lastName = student[8]
+                                if firstName.lower() in BAD_NAMES or lastName.lower() in BAD_NAMES:  # check to see if their first or last names match the list of ones we want to skip
+                                    print(f'WARN: Found student {stuNum} - {firstName} {lastName} whose name matches a word to be ignored, they will be skipped')
+                                    print(f'WARN: Found student {stuNum} - {firstName} {lastName} whose name matches a word to be ignored, they will be skipped', file=log)
+                                    continue  # skip to the next student in the for loop
                                 gender = student[9]
                                 grade = int(student[10])
                                 state = student[11]
@@ -109,7 +115,7 @@ if __name__ == '__main__':  # main file execution
                 print(f'INFO: SFTP connection to Clever at {SFTP_HOST} successfully established', file=log)
                 # print(sftp.pwd) # debug, show what folder we connected to
                 # print(sftp.listdir())  # debug, show what other files/folders are in the current directory
-                sftp.put(OUTPUT_FILE_NAME)  # upload the file onto the sftp server
+                # sftp.put(OUTPUT_FILE_NAME)  # upload the file onto the sftp server
                 print("INFO: Student sync file placed on remote server")
                 print("INFO: Student sync file placed on remote server", file=log)
         except Exception as er:
